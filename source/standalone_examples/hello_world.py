@@ -6,6 +6,8 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 #
+import math
+
 
 from isaacsim import SimulationApp
 
@@ -19,13 +21,18 @@ from isaacsim.core.api.objects import DynamicCuboid
 from isaacsim.core.api.robots import Robot
 from isaacsim.sensors.physx import _range_sensor
 import omni.isaac.RangeSensorSchema as RangeSensorSchema
+from omni.kit.viewport.utility.camera_state import ViewportCameraState
 
-
-from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdPhysics
+# from omni.importer.mesh_importer import MeshImporter
+from pxr import Gf, PhysxSchema, Sdf, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
 from isaacsim.core.utils.nucleus import get_assets_root_path
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.core.utils.viewports import set_camera_view
+
+from common import set_drive_parameters
+
+
 
 # Create simulation world
 world = World()
@@ -39,7 +46,7 @@ cube = world.scene.add(
     DynamicCuboid(
         prim_path="/World/random_cube",
         name="fancy_cube",
-        position=np.array([0, 0, 1.0]),
+        position=np.array([0, 1, 0.25]),
         scale=np.array([0.5, 0.5, 0.5]),
         color=np.array([0.0, 0.0, 1.0])
     )
@@ -64,6 +71,68 @@ lidar.GetRotationRateAttr().Set(0.5)
 lidar.GetDrawLinesAttr().Set(True)
 lidar.AddTranslateOp().Set(Gf.Vec3f(0.0, 0.0, 0.250))
 set_camera_view(eye=[5.00, 5.00, 5.00], target=[0.0, 0.0, 0.0], camera_prim_path="/OmniverseKit_Persp")
+
+
+
+
+
+status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
+import_config.merge_fixed_joints = False
+import_config.fix_base = True
+import_config.make_default_prim = True
+import_config.create_physics_scene = True
+omni.kit.commands.execute(
+    "URDFParseAndImportFile",
+    urdf_path= "my_assets/ur10/urdf/ur10.urdf",
+    import_config=import_config,
+)
+
+camera_state = ViewportCameraState("/OmniverseKit_Persp")
+camera_state.set_position_world(Gf.Vec3d(2.0, -2.0, 0.5), True)
+camera_state.set_target_world(Gf.Vec3d(0.0, 0.0, 0.0), True)
+
+stage = omni.usd.get_context().get_stage()
+scene = UsdPhysics.Scene.Define(stage, Sdf.Path("/physicsScene"))
+scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, 0.0, -1.0))
+scene.CreateGravityMagnitudeAttr().Set(9.81)
+
+distantLight = UsdLux.DistantLight.Define(stage, Sdf.Path("/DistantLight"))
+distantLight.CreateIntensityAttr(500)
+
+stage = omni.usd.get_context().get_stage()
+
+PhysxSchema.PhysxArticulationAPI.Get(stage, "/ur10").CreateSolverPositionIterationCountAttr(64)
+PhysxSchema.PhysxArticulationAPI.Get(stage, "/ur10").CreateSolverVelocityIterationCountAttr(64)
+
+joint_1 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/shoulder_pan_joint"), "angular")
+joint_2 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/shoulder_lift_joint"), "angular")
+joint_3 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/elbow_joint"), "angular")
+joint_4 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_1_joint"), "angular")
+joint_5 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_2_joint"), "angular")
+joint_6 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_3_joint"), "angular")
+
+# Set the drive mode, target, stiffness, damping and max force for each joint
+set_drive_parameters(joint_1, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+set_drive_parameters(joint_2, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+set_drive_parameters(joint_3, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+set_drive_parameters(joint_4, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+set_drive_parameters(joint_5, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+set_drive_parameters(joint_6, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Reset the simulation
 world.reset()
