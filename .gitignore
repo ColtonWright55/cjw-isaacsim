@@ -1,6 +1,9 @@
 ﻿# All folders starting with _ are local.
 _*/
 
+# Meshes are too big
+my_assets/agf1/meshes/
+
 # Compiled python files.
 *.py[cod]
 
