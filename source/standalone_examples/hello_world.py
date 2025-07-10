@@ -38,91 +38,47 @@ from common import set_drive_parameters
 world = World()
 world.scene.add_default_ground_plane()
 assets_root_path = get_assets_root_path()
-asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
-add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
-jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
+# asset_path = assets_root_path + "/Isaac/Robots/Jetbot/jetbot.usd"
+# add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
+# jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
 # Add a cube
-cube = world.scene.add(
-    DynamicCuboid(
-        prim_path="/World/random_cube",
-        name="fancy_cube",
-        position=np.array([0, 1, 0.25]),
-        scale=np.array([0.5, 0.5, 0.5]),
-        color=np.array([0.0, 0.0, 1.0])
-    )
-)
+# cube = world.scene.add(
+#     DynamicCuboid(
+#         prim_path="/World/random_cube",
+#         name="fancy_cube",
+#         position=np.array([0, 1, 0.25]),
+#         scale=np.array([0.5, 0.5, 0.5]),
+#         color=np.array([0.0, 0.0, 1.0])
+#     )
+# )
 stage = omni.usd.get_context().get_stage()
 UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
 UsdGeom.SetStageMetersPerUnit(stage, 1.0)
 UsdPhysics.Scene.Define(stage, Sdf.Path("/World/physicsScene"))
 lidarPath = "/World/Lidar"
 lidar = RangeSensorSchema.Lidar.Define(stage, Sdf.Path(lidarPath))
-lidar.CreateHorizontalFovAttr().Set(360.0)
-lidar.CreateVerticalFovAttr().Set(10)
-lidar.CreateRotationRateAttr().Set(20.0)
-lidar.CreateHorizontalResolutionAttr().Set(1.0)
-lidar.CreateVerticalResolutionAttr().Set(1.0)
-lidar.CreateMinRangeAttr().Set(0.4)
-lidar.CreateMaxRangeAttr().Set(100.0)
-lidar.CreateHighLodAttr().Set(True)
-lidar.CreateDrawPointsAttr().Set(False)
-lidar.CreateDrawLinesAttr().Set(False)
-lidar.GetRotationRateAttr().Set(0.5)
+
+HOZ_FOV = 45.0
+HOZ_RES = 1280
+lidar.CreateHorizontalFovAttr().Set(HOZ_FOV)
+lidar.CreateVerticalFovAttr().Set(0.5)
+
+lidar.CreateHorizontalResolutionAttr().Set(HOZ_FOV/HOZ_RES) # Make sure you get 1280 points
+lidar.CreateVerticalResolutionAttr().Set(0) # So there is only one beam
+# Rotation rate in Hz, set to 0 for static lidar
+lidar.CreateRotationRateAttr().Set(0.0)
+
+# Min and max range for the LIDAR.  This defines the starting and stopping locations for the linetrace
+lidar.CreateMinRangeAttr().Set(0.0)
+lidar.CreateMaxRangeAttr().Set(0.4)  # Increased range to make beam more visible
+
+lidar.CreateHighLodAttr().Set(True) # High level of detail
+lidar.CreateDrawPointsAttr().Set(True)  # Enable point visualization
+lidar.CreateDrawLinesAttr().Set(True)   # Enable line visualization
 lidar.GetDrawLinesAttr().Set(True)
-lidar.AddTranslateOp().Set(Gf.Vec3f(0.0, 0.0, 0.250))
-set_camera_view(eye=[5.00, 5.00, 5.00], target=[0.0, 0.0, 0.0], camera_prim_path="/OmniverseKit_Persp")
-
-
-
-
-
-status, import_config = omni.kit.commands.execute("URDFCreateImportConfig")
-import_config.merge_fixed_joints = False
-import_config.fix_base = True
-import_config.make_default_prim = True
-import_config.create_physics_scene = True
-omni.kit.commands.execute(
-    "URDFParseAndImportFile",
-    urdf_path= "my_assets/ur10/urdf/ur10.urdf",
-    import_config=import_config,
-)
-base_prim = stage.GetPrimAtPath("/ur10/base_link")  # adjust for your URDF
-# UsdGeom.Xformable(base_prim).AddTranslateOp().Set(Gf.Vec3f(2.0, 0.0, 0.5))
-UsdGeom.Xformable(base_prim).MakeMatrixXform().SetTranslate(Gf.Vec3f(2.0, 0.0, 0.5))
-# camera_state = ViewportCameraState("/OmniverseKit_Persp")
-# camera_state.set_position_world(Gf.Vec3d(2.0, -2.0, 0.5), True)
-# camera_state.set_target_world(Gf.Vec3d(0.0, 0.0, 0.0), True)
-
-# stage = omni.usd.get_context().get_stage()
-# scene = UsdPhysics.Scene.Define(stage, Sdf.Path("/physicsScene"))
-# scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, 0.0, -1.0))
-# scene.CreateGravityMagnitudeAttr().Set(9.81)
-
-# distantLight = UsdLux.DistantLight.Define(stage, Sdf.Path("/DistantLight"))
-# distantLight.CreateIntensityAttr(500)
-
-# stage = omni.usd.get_context().get_stage()
-
-
-# PhysxSchema.PhysxArticulationAPI.Get(stage, "/ur10").CreateSolverPositionIterationCountAttr(64)
-# PhysxSchema.PhysxArticulationAPI.Get(stage, "/ur10").CreateSolverVelocityIterationCountAttr(64)
-
-# joint_1 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/shoulder_pan_joint"), "angular")
-# joint_2 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/shoulder_lift_joint"), "angular")
-# joint_3 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/elbow_joint"), "angular")
-# joint_4 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_1_joint"), "angular")
-# joint_5 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_2_joint"), "angular")
-# joint_6 = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/ur10/joints/wrist_3_joint"), "angular")
-
-# # Set the drive mode, target, stiffness, damping and max force for each joint
-# set_drive_parameters(joint_1, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-# set_drive_parameters(joint_2, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-# set_drive_parameters(joint_3, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-# set_drive_parameters(joint_4, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-# set_drive_parameters(joint_5, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-# set_drive_parameters(joint_6, "position", math.degrees(0), math.radians(1e8), math.radians(5e7))
-
-
+lidar.AddTranslateOp().Set(Gf.Vec3f(0.19, -0.17, 1.246))
+lidar.AddRotateZOp().Set(90.0)
+set_camera_view(eye=[.4, -3.00, 3.00], target=[0.0, 0.0, 0.0], camera_prim_path="/OmniverseKit_Persp")
 
 
 
@@ -147,11 +103,40 @@ omni.kit.commands.execute(
 
 
 
+# Configuration for dynamic mesh loading
+import random
+import os
+
+# List of available mesh files (you can modify this list)
+available_meshes = [
+    "my_assets/agf1/meshes/Agility_Forge_Frame.obj",
+    "my_assets/agf1/meshes/blenderAgF.obj",
+    "my_assets/agf1/meshes/scanCONTROL LLT29xx-10.obj"
+]
+
+# Randomly select a mesh for this run (or you can set a specific one)
+selected_mesh = random.choice(available_meshes)
+print(f"Loading mesh: {selected_mesh}")
+
+# Add a dynamic mesh that can rotate about any axis
+# Import the selected mesh file using USD reference
+add_reference_to_stage(
+    usd_path=selected_mesh,
+    prim_path="/World/dynamic_mesh"
+)
+
+# Get the mesh prim for manipulation
+stage = omni.usd.get_context().get_stage()
+dynamic_mesh_prim = stage.GetPrimAtPath("/World/dynamic_mesh")
+add_reference_to_stage(
+    usd_path=selected_mesh,
+    prim_path="/World/dynamic_mesh"
+)
 # Reset the simulation
 world.reset()
 
 
-for i in range(1000):
+while True:
     world.step(render=True)
     # kit.update()
 
