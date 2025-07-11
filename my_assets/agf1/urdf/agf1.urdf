@@ -19,6 +19,7 @@
             <mass value="1.0"/>
         </inertial>
     </link>
+
     <link name="x_table">
         <collision>
             <origin xyz="0 0 0.02" rpy="0 0 0"/>
@@ -27,7 +28,7 @@
             </geometry>
         </collision>
         <visual>
-            <origin xyz="0 0 1247335." rpy="0 0 0"/> <!-- TODO: Measure this -->
+            <origin xyz="0 0 1.245" rpy="0 0 0"/> <!-- TODO: Measure this -->
             <geometry>
                 <mesh filename="../meshes/Agility_Forge_X_axis_Table.obj" scale="0.001 0.001 0.001"/>
             </geometry>
@@ -37,6 +38,18 @@
         </inertial>
     </link>
 
+    <link name="workpiece">
+        <visual>
+            <origin xyz=".3 0 1.246" rpy="0 0 3.14159"/> <!-- TODO: Measure this -->
+            <geometry>
+                <mesh filename="../meshes/part_afp.obj" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </visual>
+        <inertial>
+            <mass value="0"/> <!-- So part does not fall -->
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+        </inertial>
+    </link>
 
     <!-- TODO: Table limits -->
     <joint name="x_table_joint" type="prismatic">
@@ -46,11 +59,11 @@
         <axis xyz="1 0 0"/>  <!-- Move along X axis -->
         <limit lower="-0.5" upper="0.5" effort="1000" velocity="1.0"/>
     </joint>
-    <joint name="y_table_joint" type="prismatic">
-        <parent link="base_link"/>
-        <child link="x_table"/>
+    <joint name="workpiece_joint" type="floating">
+        <parent link="x_table"/>
+        <child link="workpiece"/>
         <origin xyz="0 0 0" rpy="0 0 0"/>
-        <axis xyz="0 1 0"/>  <!-- Move along Y axis -->
-        <limit lower="-0.3" upper="0.3" effort="1000" velocity="1.0"/>
     </joint>
+
+
 </robot>
