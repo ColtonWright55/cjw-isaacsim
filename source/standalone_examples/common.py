@@ -52,13 +52,13 @@ def convert_lidar_to_xz(lidar, depth, zenith, azimuth, horizontal_resolution=128
 
     depth = depth*maxdepth/65535.0*1000.0 # Depth in mm
 
-    print(f"Depth: {depth.shape}")
-    print(f"Depth col 0: {depth[0:10, 0]}")
-    print(f"Depth col 1: {depth[0:10, 1]}")
-    print(f"Depth col 2: {depth[0:10, 2]}")
+    # print(f"Depth: {depth.shape}")
+    # print(f"Depth col 0: {depth[0:10, 0]}")
+    # print(f"Depth col 1: {depth[0:10, 1]}")
+    # print(f"Depth col 2: {depth[0:10, 2]}")
 
-    print(f"Zenith: {zenith.shape}")
-    print(f"Azimuth: {azimuth.shape}")
+    # print(f"Zenith: {zenith.shape}")
+    # print(f"Azimuth: {azimuth.shape}")
 
     x_coords = depth[:, 0] * np.sin(azimuth)  # Left-right distance in mm
     z_coords = depth[:, 0] * np.cos(azimuth)  # Z-axis distance in mm

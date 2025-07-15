@@ -30,12 +30,15 @@ from pxr import Gf, PhysxSchema, Sdf, UsdGeom, UsdLux, UsdPhysics, UsdShade
 from isaacsim.core.utils.nucleus import get_assets_root_path
 from isaacsim.core.utils.stage import add_reference_to_stage
 from isaacsim.core.utils.viewports import set_camera_view
-
+from omni.physx.scripts.physicsUtils import set_or_add_translate_op
+import asyncio
 from common import set_drive_parameters, _get_info_function
+from omni.physx.scripts import deformableUtils, physicsUtils
 
 # Create data directory for LIDAR recordings
 data_dir = "_lidar_data"
 os.makedirs(data_dir, exist_ok=True)
+
 
 # LIDAR data storage
 lidar_data_buffer = []
@@ -79,7 +82,6 @@ lidar.CreateHighLodAttr().Set(True) # High level of detail
 lidar.CreateDrawPointsAttr().Set(True)  # Enable point visualization
 lidar.CreateDrawLinesAttr().Set(True)   # Enable line visualization
 lidar.GetDrawLinesAttr().Set(True)
-
 lidar.AddTranslateOp().Set(Gf.Vec3f(0.19, -0.17, 1.246))
 lidar.AddRotateZOp().Set(90.0)
 _li = _range_sensor.acquire_lidar_sensor_interface()
@@ -108,37 +110,40 @@ omni.kit.commands.execute(
 )
 
 
+# Convert .obj into .usd and add to stage
+input_asset_path = "/home/cjw/GithubOther/cjw-isaacsim/my_assets/agf1/meshes/part_afp.obj"
+output_asset_path = "/home/cjw/GithubOther/cjw-isaacsim/my_assets/agf1/meshes/part_afp.usd"
+converter = omni.kit.asset_converter.get_instance()
+def progress_callback(current_step: int, total: int):
+    # Show progress
+    print(f"{current_step} of {total}")
+async def convert(input_asset_path, output_asset_path):
+    task_manager = converter
+    task = task_manager.create_converter_task(input_asset_path, output_asset_path, progress_callback)
+    success = await task.wait_until_finished()
+    if not success:
+        detailed_status_code = task.get_status()
+        detailed_status_error_string = task.get_error_message()
+asyncio.ensure_future(convert(input_asset_path, output_asset_path))
+add_reference_to_stage(usd_path=output_asset_path, prim_path="/World/part_afp")
+stage = omni.usd.get_context().get_stage()
+part_prim = stage.GetPrimAtPath("/World/part_afp")
+UsdPhysics.CollisionAPI.Apply(part_prim)
+col_mesh_api = UsdPhysics.MeshCollisionAPI.Apply(part_prim)
+col_mesh_api.GetApproximationAttr().Set("none")  # Use exact mesh, no approximation
+xform = UsdGeom.Xform(part_prim)
+physicsUtils.set_or_add_scale_op(xform, Gf.Vec3f(0.001, 0.001, 0.001))
+physicsUtils.set_or_add_translate_op(xform, Gf.Vec3f(0.28, -0.0, 1.246))
+physicsUtils.set_or_add_orient_op(xform, Gf.Quatf(0.0, Gf.Vec3f(0, 0, 1)).GetNormalized())
+
 
 # Below here is trying to shutoff gravity and make workpiece kinematic
-
 scene = UsdPhysics.Scene.Define(stage, Sdf.Path("/physicsScene"))
 scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, 0.0, -1.0))
 scene.CreateGravityMagnitudeAttr().Set(0)
 
-stage = omni.usd.get_context().get_stage()
-workpiece_prim = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/agf1/workpiece"), "angular")
-set_drive_parameters(workpiece_prim, "velocity", math.degrees(1), 0, math.radians(1))
 
-# Debug: Inspect the collision geometry that was actually created
-workpiece_collision_prim = stage.GetPrimAtPath("/agf1/workpiece")
-print(f"Workpiece collision prim: {workpiece_collision_prim.GetPath()}")
-UsdPhysics.CollisionAPI.Apply(workpiece_collision_prim)
-
-
-# Find collision meshes
-def find_collision_meshes(prim):
-    collision_meshes = []
-    for child in prim.GetChildren():
-        if child.HasAPI(UsdPhysics.CollisionAPI):
-            collision_meshes.append(child)
-        collision_meshes.extend(find_collision_meshes(child))
-    return collision_meshes
-
-collision_meshes = find_collision_meshes(workpiece_collision_prim)
-print(f"Found {len(collision_meshes)} collision meshes")
-
-
-
+# Add light for cosmetics
 distantLight = UsdLux.DistantLight.Define(stage, Sdf.Path("/DistantLight"))
 distantLight.CreateIntensityAttr(500)
 set_camera_view(eye=[.4, -3.00, 3.00], target=[0.0, 0.0, 0.0], camera_prim_path="/OmniverseKit_Persp")
@@ -152,9 +157,17 @@ set_camera_view(eye=[.4, -3.00, 3.00], target=[0.0, 0.0, 0.0], camera_prim_path=
 world.reset()
 
 time_step = 0
-recording_duration = 10000  # Record for 1000 simulation steps
+recording_duration = 250  # Record for 1000 simulation steps
 
-while time_step < recording_duration or True:
+physx_body = PhysxSchema.PhysxRigidBodyAPI.Apply(part_prim)
+# angular_velocity_attr = physx_body.GetAngularVelocityAttr()
+# angular_velocity_attr.Set(Gf.Vec3f(0.0, 0.0, 1.0))
+
+# Doesn't work
+# workpiece_drive = UsdPhysics.DriveAPI.Get(stage.GetPrimAtPath("/World/part_afp"), "angular")
+# workpiece_drive.GetTargetVelocityAttr().Set(150)
+
+while time_step < recording_duration:
     world.step(render=True)
 
     # Get LIDAR data for debugging and recording
@@ -173,32 +186,24 @@ while time_step < recording_duration or True:
         if time_step % 10 == 0:
             print(f"Time step: {time_step}")
 
-    _get_info_function(lidar, _li, lidarPath)
     time_step += 1
     # kit.update()
 
-# Convert all numpy arrays to lists for JSON serialization
 for frame in lidar_data_buffer:
     frame["x"] = frame["x"].tolist() if hasattr(frame["x"], 'tolist') else frame["x"]
     frame["z"] = frame["z"].tolist() if hasattr(frame["z"], 'tolist') else frame["z"]
 
-# Save LIDAR data to disk
 print(f"\nSaving {len(lidar_data_buffer)} frames of LIDAR data...")
 
-# Save metadata
 metadata_file = os.path.join(data_dir, "lidar_metadata.json")
 with open(metadata_file, 'w') as f:
     json.dump(lidar_metadata, f, indent=2)
-
-# Save data
 data_file = os.path.join(data_dir, "lidar_data.json")
 with open(data_file, 'w') as f:
     json.dump(lidar_data_buffer, f, indent=2)
 
 print(f"LIDAR data saved to: {data_file}")
 print(f"Metadata saved to: {metadata_file}")
-print("Run 'python plot_lidar_data.py' to visualize the data")
 
-omni.kit.app.get_app().print_and_log("Hello World!")
 
-kit.close()  # Cleanup application
+omni.kit.app.get_app().print_and_log("Closing...")
